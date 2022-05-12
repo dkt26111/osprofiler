@@ -19,6 +19,7 @@ import functools
 import inspect
 import socket
 import threading
+import random
 
 from oslo_utils import reflection
 from oslo_utils import uuidutils
@@ -359,9 +360,7 @@ class _Profiler(object):
 
     def __init__(self, hmac_key, base_id=None, parent_id=None):
         self.hmac_key = hmac_key
-        if not base_id:
-            base_id = str(uuidutils.generate_uuid())
-        self._trace_stack = collections.deque([base_id, parent_id or base_id])
+        self._trace_stack = collections.deque()
         self._name = collections.deque()
         self._host = socket.gethostname()
 
@@ -379,14 +378,24 @@ class _Profiler(object):
         Base id is the same for all elements in one trace. It's main goal is
         to be able to retrieve by one request all trace elements from storage.
         """
+
+        if len(self._trace_stack) < 1:
+            return None
+
         return self._trace_stack[0]
 
     def get_parent_id(self):
         """Returns parent trace element id."""
-        return self._trace_stack[-2]
+        if len(self._trace_stack) < 1:
+            return None
+
+        return self._trace_stack[-1]
 
     def get_id(self):
         """Returns current trace element id."""
+        if len(self._trace_stack) < 1:
+            return None
+
         return self._trace_stack[-1]
 
     def start(self, name, info=None):
@@ -406,8 +415,10 @@ class _Profiler(object):
         info = info or {}
         info["host"] = self._host
         self._name.append(name)
-        self._trace_stack.append(str(uuidutils.generate_uuid()))
-        self._notify("%s-start" % name, info)
+        ids = self._notify("%s-start" % name, info)
+
+        for i in ids:
+            self._trace_stack.append(i)
 
     def stop(self, info=None):
         """Finish latest event.
@@ -425,7 +436,7 @@ class _Profiler(object):
         payload = {
             "name": name,
             "base_id": self.get_base_id(),
-            "trace_id": self.get_id(),
+#            "trace_id": self.get_id(),
             "parent_id": self.get_parent_id(),
             "timestamp": datetime.datetime.utcnow().strftime(
                 "%Y-%m-%dT%H:%M:%S.%f"),
@@ -433,4 +444,8 @@ class _Profiler(object):
         if info:
             payload["info"] = info
 
-        notifier.notify(payload)
+        current_trace_id = notifier.notify(payload)
+
+        print("Span: payload: {}, return: {}".format(payload, current_trace_id))
+
+        return current_trace_id

@@ -55,13 +55,13 @@ class JaegerTestCase(test.TestCase):
     def test_notify_start(self, mock_shorten_id):
         self.driver.notify(self.payload_start)
         calls = [
-            mock.call(self.payload_start["base_id"]),
-            mock.call(self.payload_start["parent_id"]),
+            #mock.call(self.payload_start["base_id"]),
+            #mock.call(self.payload_start["parent_id"]),
             mock.call(self.payload_start["trace_id"])
         ]
         mock_shorten_id.assert_has_calls(calls, any_order=True)
 
-    @mock.patch("jaeger_client.span.Span")
+    @mock.patch("opentelemetry.trace.Span")
     @mock.patch("time.time")
     def test_notify_stop(self, mock_time, mock_span):
         fake_time = 1525416065.5958152
@@ -75,4 +75,4 @@ class JaegerTestCase(test.TestCase):
         mock_time.assert_called_once()
         mock_time.reset_mock()
 
-        span.finish.assert_called_once_with(finish_time=fake_time)
+        span.end.assert_called_once_with(end_time=fake_time)

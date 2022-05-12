@@ -35,7 +35,7 @@ def notify(info):
 
     :param info: dictionary with profiling information
     """
-    __notifier(info)
+    return __notifier(info)
 
 
 def get():
