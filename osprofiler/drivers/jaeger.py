@@ -30,7 +30,7 @@ from opentelemetry.context import Context
 from opentelemetry.exporter.jaeger.thrift import JaegerExporter
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.instrumentation.utils import _start_internal_or_server_span
 
 class Jaeger(base.Driver):
@@ -76,7 +76,7 @@ class Jaeger(base.Driver):
         )
 
         trace.get_tracer_provider().add_span_processor(
-            BatchSpanProcessor(jaeger_exporter)
+            SimpleSpanProcessor(jaeger_exporter)
         )
 
         self.tracer = trace.get_tracer(__name__)
@@ -149,12 +149,12 @@ class Jaeger(base.Driver):
 
             current_span_id = span.get_span_context().span_id
             
+            trace_id = payload["base_id"]
             if parent_span is None:
-                # return trace id and span id
+                # get newly generated trace id
                 trace_id = span.get_span_context().trace_id
-                return [trace_id, current_span_id]
 
-            return [current_span_id]
+            return trace_id, current_span_id
         else:
             activation = self.spans.pop()
 
@@ -171,6 +171,8 @@ class Jaeger(base.Driver):
 
             print("stopping span!")
             activation.__exit__(None, None, None)
+
+            return None, None
 
     def get_report(self, base_id):
         """Please use Jaeger Tracing UI for this task."""

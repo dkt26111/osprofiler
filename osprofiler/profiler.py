@@ -360,7 +360,13 @@ class _Profiler(object):
 
     def __init__(self, hmac_key, base_id=None, parent_id=None):
         self.hmac_key = hmac_key
-        self._trace_stack = collections.deque()
+        self.trace_id = base_id
+        self._span_stack = collections.deque()
+
+        if parent_id:
+            # add parent id to span stack if provided
+            self._span_stack.append(parent_id)
+
         self._name = collections.deque()
         self._host = socket.gethostname()
 
@@ -379,24 +385,14 @@ class _Profiler(object):
         to be able to retrieve by one request all trace elements from storage.
         """
 
-        if len(self._trace_stack) < 1:
-            return None
-
-        return self._trace_stack[0]
-
-    def get_parent_id(self):
-        """Returns parent trace element id."""
-        if len(self._trace_stack) < 1:
-            return None
-
-        return self._trace_stack[-1]
+        return self.trace_id
 
     def get_id(self):
-        """Returns current trace element id."""
-        if len(self._trace_stack) < 1:
+        """Returns parent trace element id."""
+        if len(self._span_stack) < 1:
             return None
 
-        return self._trace_stack[-1]
+        return self._span_stack[-1]
 
     def start(self, name, info=None):
         """Start new event.
@@ -415,10 +411,10 @@ class _Profiler(object):
         info = info or {}
         info["host"] = self._host
         self._name.append(name)
-        ids = self._notify("%s-start" % name, info)
+        self.trace_id, span_id = self._notify("%s-start" % name, info)
 
-        for i in ids:
-            self._trace_stack.append(i)
+        print("adding span id: {}".format(span_id))
+        self._span_stack.append(span_id)
 
     def stop(self, info=None):
         """Finish latest event.
@@ -430,22 +426,21 @@ class _Profiler(object):
         info = info or {}
         info["host"] = self._host
         self._notify("%s-stop" % self._name.pop(), info)
-        self._trace_stack.pop()
+        self._span_stack.pop()
 
     def _notify(self, name, info):
         payload = {
             "name": name,
-            "base_id": self.get_base_id(),
+            "base_id": self.trace_id,
 #            "trace_id": self.get_id(),
-            "parent_id": self.get_parent_id(),
+            "parent_id": self.get_id(),
             "timestamp": datetime.datetime.utcnow().strftime(
                 "%Y-%m-%dT%H:%M:%S.%f"),
         }
         if info:
             payload["info"] = info
 
-        current_trace_id = notifier.notify(payload)
+        print("Span: payload: {}".format(payload))
 
-        print("Span: payload: {}, return: {}".format(payload, current_trace_id))
+        return notifier.notify(payload)
 
-        return current_trace_id
